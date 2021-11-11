@@ -23,24 +23,25 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.17
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
 
-    - name: Build
-      run: make build
+      - name: Test
+        run: make test && make coverage
+        env:
+          DEREGISTER_CRITICAL_SERVICE_AFTER_SECONDS: 25
+      - name: Show Service Error
+        if: ${{ failure() }}
+        run: |
+          curl http://localhost:8500/v1/health/service/balancer-server?passing=1&tag=test
+          docker logs "${{ job.services.consul.id }}"
 
-    - name: Test
-      run: make test && make coverage
-      env:
-        CONSUL_ADDR: localhost:8500
-        DEREGISTER_CRITICAL_SERVICE_AFTER_SECONDS: 5
-
-    - name: Upload Coverage report to CodeCov
-      uses: codecov/codecov-action@v1.0.0
-      with:
-        token: ${{secrets.CODECOV_TOKEN}}
-        file: ./coverage/coverage.out
+      - name: Upload Coverage report to CodeCov
+        uses: codecov/codecov-action@v1.0.0
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}
+          file: ./coverage/coverage.out

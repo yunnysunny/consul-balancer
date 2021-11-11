@@ -18,9 +18,6 @@ check:
 switch2tag:
 	python scripts/switch_tag.py
 
-build:
-	go build -o ../bin/$(projectName)
-
 # 需要安装依赖 sudo apt install graphviz -y
 # go get github.com/kisielk/godepgraph
 dep:
@@ -53,7 +50,5 @@ clean:
 	rm -rf bin/*
 
 grace:pull test
-	
 
-
-.PHONY: check pull test coverage run clean build dep gen-proto grace
+.PHONY: check pull test coverage run clean dep gen-proto grace

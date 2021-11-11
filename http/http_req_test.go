@@ -2,8 +2,10 @@ package http
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ var (
 	meta = map[string]string {
 		"ServiceType": "test",
 	}
+	currentIp string
 )
 
 func httpHandler() fasthttp.RequestHandler {
@@ -52,14 +55,39 @@ func registerServer(consulClient *api.Client, port int) error {
 
 	// 增加consul健康检查回调函数	
 	check := new(api.AgentServiceCheck)
-	check.HTTP = "http://localhost:" + strconv.Itoa(port) + "/test"
+	check.HTTP = "http://" + currentIp + ":" + strconv.Itoa(port) + "/test"
 	check.Interval = strconv.Itoa(int(checkTTL)) + "s"
 	check.Timeout = check.Interval
-	check.DeregisterCriticalServiceAfter = "3s"
+	check.DeregisterCriticalServiceAfter = "6s"
 
 	registration.Check = check
 	err := consulClient.Agent().ServiceRegister(registration)
 	return err
+}
+
+func getIp() string {
+	addrs, err := net.InterfaceAddrs()
+
+	if err != nil {
+		fmt.Println("read network interface failed", err)
+		return ""
+	}
+
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ip := ipnet.IP.String()
+				if strings.HasPrefix(ip, "169.254.") {//not private network
+					continue
+				}
+				fmt.Println("get local ip", ip)
+				return ip
+			}
+
+		}
+	}
+
+	return ""
 }
 
 func TestMain(m *testing.M) {
@@ -98,11 +126,43 @@ func TestMain(m *testing.M) {
 		fmt.Printf("error create consul client: %v\n", err)
 		return
 	}
+	currentIp = getIp()
 	for i:=0;i<serverCount;i++ {
-		registerServer(clientConsul, httpPort+i)
+		err = registerServer(clientConsul, httpPort+i)
+		if err != nil {
+			fmt.Println("register index ", i, " error ", err)
+			return
+		}
+		fmt.Println("register index", i, "success")
 	}
+	fmt.Println("sleep ", waitForReady, "s")
+	time.Sleep(time.Duration(waitForReady) * time.Second)
 	m.Run()
 	fmt.Println("end")
+}
+
+func TestServiceList(t *testing.T) {
+	serviceConfig := &ServiceConfig {
+		ServiceName: serviceName,
+		Tags: tags,	
+		TimeoutSeconds4Ready: 10,	
+	}
+	balancer, err := NewHttpBalancer(serviceConfig)
+	if err != nil {
+		t.Errorf("init balancer failed: %v", err)
+		return
+	}
+	services, _, err := balancer.consulClient.Health().ServiceMultipleTags(
+		balancer.serviceName, balancer.tags, true, &api.QueryOptions{WaitIndex: balancer.lastIndex},
+	)
+	if err != nil {
+		t.Fatalf("error retrieving instances from Consul: %v", err)
+		return
+	}
+	if len(services) == 0 {
+		t.Fatal("service is empty")
+		return
+	}
 }
 
 func TestReq(t *testing.T) {
@@ -120,9 +180,10 @@ func TestReq(t *testing.T) {
 	// uri.Parse(nil, []byte("/get"))
 
 	req := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(req)
 	req.SetRequestURI("/get")
 	resp := fasthttp.AcquireResponse()
-
+	defer fasthttp.ReleaseResponse(resp)
 
 	err = balancer.Do(req, resp)
 	if err != nil {
