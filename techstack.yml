@@ -2,7 +2,7 @@ repo_name: yunnysunny/consul-balancer
 report_id: 7964c244241df36a276b0f69083b2b72
 version: 0.1
 repo_type: Public
-timestamp: '2024-02-05T15:55:25+00:00'
+timestamp: '2024-02-29T19:55:19+00:00'
 requested_by: yunnysunny
 provider: github
 branch: main
@@ -135,8 +135,8 @@ tools:
     severity: high
     first_patched: 1.34.0
 - name: go-cleanhttp
-  description: 'Cleanhttp Functions for accessing "clean" Go http.Client values The
-    Go standard library contains a default called '
+  description: Cleanhttp Functions for accessing "clean" Go http.Client values The
+    Go standard library contains a default called
   package_url: https://pkg.go.dev/github.com/hashicorp/go-cleanhttp
   version: 0.5.1
   license: MPL-2.0
